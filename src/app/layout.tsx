@@ -16,7 +16,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <main className="bg-[#FAFAFA] min-h-screen grid place-content-center">
+          {children}
+        </main>
+      </body>
     </html>
   );
 }
