@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody, CardFooter, CardHeader } from "@nextui-org/react";
 
 export default async function Home() {
+  // always init server Supabase client inside a page
   const supabase = createClient();
   const {
     data: { user },

@@ -14,6 +14,8 @@ export default function DeleteAccount({ userId }: { userId: string }) {
           const res = await deleteUser(formData);
           if (res?.error) {
             toast.error(res.error);
+          } else {
+            toast.success("Your account has been deleted!");
           }
         })
       }
