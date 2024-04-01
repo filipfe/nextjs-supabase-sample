@@ -1,16 +1,17 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "../supabase/server";
+import { redirect } from "next/navigation";
 
 export async function signIn(
   formData: FormData
 ): Promise<SupabaseResponse<any>> {
   const email = formData.get("email")?.toString();
-  const password = formData.get("password")?.toString();
 
-  if (!email || !password) {
+  if (!email) {
     return {
-      error: "Both email and password are required!",
+      error: "Email is required!",
       results: [],
     };
   }
@@ -20,9 +21,12 @@ export async function signIn(
 
   const supabase = createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.signInWithOtp({
     email,
-    password,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+    },
   });
 
   if (error) {
@@ -66,7 +70,6 @@ export async function deleteUser(
     };
   }
 
-  return {
-    results: [user.id],
-  };
+  revalidatePath("/", "layout");
+  redirect("/sign-in");
 }
