@@ -46,7 +46,7 @@ export async function deleteUser(
 ): Promise<SupabaseResponse<string>> {
   const id = formData.get("id")?.toString();
 
-  const supabase = createClient({ isAdmin: true });
+  const supabase = createClient();
 
   // verify if authenticated user is the one that is being deleted
 
@@ -61,7 +61,14 @@ export async function deleteUser(
     };
   }
 
-  const { error } = await supabase.auth.admin.deleteUser(user.id);
+  // const { error } = await supabase.auth.admin.deleteUser(user.id);
+  const current = new Date();
+  const deletion_date = new Date();
+  deletion_date.setDate(current.getDate() + 10);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ deletion_date })
+    .eq("id", user.id);
 
   if (error) {
     return {
@@ -71,5 +78,44 @@ export async function deleteUser(
   }
 
   revalidatePath("/", "layout");
-  redirect("/sign-in");
+
+  return {
+    results: [deletion_date.toLocaleDateString()],
+  };
+}
+
+export async function reactivateUser(
+  formData: FormData
+): Promise<SupabaseResponse<string>> {
+  const id = formData.get("id")?.toString();
+
+  const supabase = createClient();
+
+  // verify if authenticated user is the one that is being deleted
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || user.id !== id) {
+    return {
+      error: "Not authorized!",
+      results: [],
+    };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ deletion_date: null })
+    .eq("id", user.id);
+
+  if (error) {
+    return {
+      results: [],
+      error: error.message,
+    };
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/");
 }

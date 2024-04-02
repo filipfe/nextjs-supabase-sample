@@ -9,7 +9,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm p-4">
       <CardHeader>You are logged in!</CardHeader>
       <CardBody>Email: {user!.email}</CardBody>
       <CardFooter>

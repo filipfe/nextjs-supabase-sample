@@ -64,8 +64,22 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL(`${request.nextUrl.origin}/sign-in`));
   }
 
-  if (user && PUBLIC_ROUTES.includes(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL(`${request.nextUrl.origin}/`));
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("deletion_date")
+      .eq("id", user.id)
+      .single();
+    if (profile?.deletion_date) {
+      return request.nextUrl.pathname === "/reactivate"
+        ? response
+        : NextResponse.redirect(
+            new URL(`${request.nextUrl.origin}/reactivate`)
+          );
+    }
+    if (PUBLIC_ROUTES.includes(request.nextUrl.pathname)) {
+      return NextResponse.redirect(new URL(`${request.nextUrl.origin}/`));
+    }
   }
 
   return response;

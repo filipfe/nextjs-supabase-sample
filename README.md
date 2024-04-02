@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+## Setting up magic link auth
 
-## Getting Started
+#### Turn off confirmation
 
-First, run the development server:
+In your Supabase dashboard navigate to _Authentication -> Providers -> Email_. Turn off the _Confirm email_ switch. This prevents double email when user signs up for the first time through magic link.
+
+#### Configure email template
+
+In your Supabase dashboard navigate to _Authentication -> Email Templates_.
+
+**Switch to _Magic Link_ tab**.
+
+Change URL inside the href tag to
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+#### (Optional) Configure custom SMTP provider to prevent rate limits
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+In your Supabase dashboard navigate to _Project Settings -> Authentication_. Scroll down to _SMTP Settings_ section and configure your custom SMTP provider.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Then, in your Supabase dashboard, navigate to _Authentication -> Rate Limits_. Change _Rate limit for sending emails_ option to a higher value.
 
-## Learn More
+## Schedule account deletion
 
-To learn more about Next.js, take a look at the following resources:
+Add a new column to the public.profiles table called _deletion_date_ with a type of _date_
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Handle deletion
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+#### Access policy on profiles
 
-## Deploy on Vercel
+Create a policy for public.profiles table allowing users to access and modify data based on their user id:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+create policy "Access based on user id"
+on "public"."profiles"
+as PERMISSIVE
+for ALL
+to public
+using (
+  auth.uid() = id
+);
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+#### Updating deletion date
+
+Change the code in _deleteUser_ server action to update the _deletion_date_ column instead of deleting user right away:
+
+```bash
+const current = new Date();
+const deletion_date = new Date();
+deletion_date.setDate(current.getDate() + 10);
+const { error } = await supabase
+  .from("profiles")
+  .update({ deletion_date })
+  .eq("id", user.id);
+```
+
+#### Handling redirects
+
+Update Supabase middleware at _lib/supabase/middleware.ts_ to properly handle redirecting when user has a deletion date:
+
+```bash
+if (user) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("deletion_date")
+    .eq("id", user.id)
+    .single();
+  if (profile?.deletion_date) {
+    return request.nextUrl.pathname === "/reactivate"
+      ? response
+      : NextResponse.redirect(
+          new URL(`${request.nextUrl.origin}/reactivate`)
+        );
+  }
+  ...
+}
+```
+
+#### Enable pg_cron in Supabase extentions
+
+Navigate to _Database -> Extentions_ in your Supabase dashboard.
+
+Enable _pg_cron_ extention
+
+#### Create a cron job for deleting users
+
+```sql
+select cron.schedule (
+    'users-cleanup', -- name of the cron job
+    '0 0 * * *', -- every day at 00:00 AM
+    $$ delete from auth.users where id in (
+      select id from profiles
+      where deletion_date = now()::date
+    ) $$
+);
+```
